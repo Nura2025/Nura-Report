@@ -1,40 +1,34 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.db.models import Patient
-from app.db.models import Patient
-from app.db.database import get_db
-from pydantic import BaseModel
-from typing import Optional
-from datetime import date
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from app.api.routes import auth, patient
+from app.db.database import init_db, close_db_connection
+from app.db.models import Patient, Clinician, Session, GameResult  # Import all models
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    try:
+        yield
+    finally:
+        await close_db_connection()
 
-class PatientCreate(BaseModel):
-    first_name: str
-    last_name: str
-    date_of_birth: date
-    gender: Optional[str] = None
-    adhd_subtype: Optional[str] = None
+app = FastAPI(
+    title="ADHD Therapy Platform API",
+    lifespan=lifespan,
+)
 
-@app.post("/patients/")
-async def create_patient(
-    patient: PatientCreate,
-    db: AsyncSession = Depends(get_db)
-):
-    db_patient = Patient(**patient.dict())
-    db.add(db_patient)
-    await db.commit()
-    await db.refresh(db_patient)
-    return db_patient
+app.include_router(auth.router)
 
-@app.get("/patients/{patient_id}")
-async def read_patient(
-    patient_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(select(Patient).where(Patient.patient_id == patient_id))
-    patient = result.scalar_one_or_none()
-    if patient is None:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return patient
+# Root endpoint
+@app.get("/", tags=["Root"])
+def read_root():
+    return {
+        "message": "Welcome to ADHD Therapy Platform API",
+        "documentation": "/docs",
+        "redoc": "/redoc"
+    }
+
+# Health check endpoint
+@app.get("/health", tags=["Health"])
+def health_check():
+    return {"status": "ok", "timestamp": datetime.utcnow()}
