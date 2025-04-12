@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.api.routes import auth, patient
+from app.api.routes import auth, patient ,session ,mini_games, game_results
 from app.db.database import init_db, close_db_connection
 from app.db.models import Patient, Clinician, Session, GameResult  # Import all models
 
@@ -18,7 +18,9 @@ app = FastAPI(
 )
 
 app.include_router(auth.router)
-
+app.include_router(session.router)
+app.include_router(mini_games.router)
+app.include_router(game_results.router)
 # Root endpoint
 @app.get("/", tags=["Root"])
 def read_root():
