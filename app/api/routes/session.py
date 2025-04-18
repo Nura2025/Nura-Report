@@ -42,17 +42,21 @@ async def create_session(
     return await service.create_session(session_data)
 
 
+from fastapi import Query  # Import Query for pagination parameters
+
 @router.get(
     "/sessions/{user_id}",
     response_model=List[SessionResponse],
     status_code=status.HTTP_200_OK,
     summary="Retrieve sessions for a specific user",
-    description="Endpoint to retrieve all sessions for a specific user by their user ID."
+    description="Endpoint to retrieve all sessions for a specific user by their user ID with pagination."
 )
 async def get_sessions_for_user(
     user_id: UUID,
     session: AsyncSession = Depends(get_session),
-    current_user: Tuple[User, UserRole] = Depends(get_current_user)  # Unpack the tuple
+    current_user: Tuple[User, UserRole] = Depends(get_current_user),  # Unpack the tuple
+    limit: int = Query(10, ge=1, le=100),  # Limit the number of results (default: 10, max: 100)
+    offset: int = Query(0, ge=0)  # Offset for pagination (default: 0)
 ):
     user, role = current_user  # Unpack the tuple into user and role
 
@@ -75,8 +79,9 @@ async def get_sessions_for_user(
                 detail="You do not have permission to access these sessions"
             )
 
+    # Retrieve sessions with pagination
     service = SessionService(session)
-    return await service.get_sessions_by_patient_id(user_id)
+    return await service.get_sessions_by_patient_id(user_id, limit=limit, offset=offset)
 
 
 
@@ -129,3 +134,4 @@ async def get_specific_session_for_patient(
         )
 
     return SessionResponse.from_orm(specific_session)
+

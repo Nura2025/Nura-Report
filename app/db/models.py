@@ -1,3 +1,4 @@
+# models.py
 from datetime import datetime, date
 from typing import Dict, List, Literal, Optional
 from uuid import UUID, uuid4
@@ -7,6 +8,8 @@ from sqlalchemy import Column, Integer, PrimaryKeyConstraint, String, Date, TIME
 from sqlalchemy.sql import func
 from sqlalchemy import Enum as SQLAlchemyEnum
 from enum import Enum
+
+from app.db.enums import GameType
 
 
 class CaseInsensitiveEnum(str, Enum):
@@ -64,7 +67,7 @@ class Clinician(SQLModel, table=True):
     
     # Relationships
     user: User = Relationship(back_populates="clinician")
-    patients: List["Patient"] = Relationship( back_populates="clinician"    )
+    patients: List["Patient"] = Relationship( back_populates="clinician")
 
 class Patient(SQLModel, table=True):
     __tablename__ = 'patients'
@@ -114,7 +117,7 @@ class GameResult(SQLModel, table=True):
     __tablename__ = 'game_results'
     
     result_id: UUID = Field( default_factory=uuid4,primary_key=True,sa_column_kwargs={"server_default": text("gen_random_uuid()")})  
-    game_type: str = Field(sa_column=Column(String(50), nullable=False))
+    game_type: GameType = Field(sa_column=Column(SQLAlchemyEnum(GameType), nullable=False))
     start_time: Optional[datetime] = Field(sa_column=Column(TIMESTAMP))
     end_time: Optional[datetime] = Field(sa_column=Column(TIMESTAMP))
     difficulty_level: Optional[int] = Field(sa_column=Column(Integer))
@@ -122,9 +125,9 @@ class GameResult(SQLModel, table=True):
     session_id: UUID = Field(foreign_key="sessions.session_id", nullable=False)
 
     session: "Session" = Relationship(back_populates="game_results")
-    crop_metrics: List["CropRecognitionMetrics"] = Relationship(back_populates="game_result")
-    sequence_metrics: List["SequenceMemoryMetrics"] = Relationship(back_populates="game_result")
-    matching_metrics: List["MatchingCardsMetrics"] = Relationship(back_populates="game_result")
+    crop_metrics: Optional["CropRecognitionMetrics"] = Relationship(back_populates="game_result")
+    sequence_metrics: Optional["SequenceMemoryMetrics"] = Relationship(back_populates="game_result")
+    matching_metrics: Optional["MatchingCardsMetrics"] = Relationship(back_populates="game_result")
 
 class CropRecognitionMetrics(SQLModel, table=True):
     __tablename__ = 'crop_recognition_metrics'
