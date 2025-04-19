@@ -1,14 +1,17 @@
+import asyncio
 from typing import Tuple
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status ,BackgroundTasks
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.db.database import get_session
 from app.schemas.game_result_schema import GameResultCropCreate, GameResultMatchingCreate, GameResultSequenceCreate
 from app.schemas.sessions_schema import SessionCreate, SessionCreateResponse, SessionResponse
+from app.services.attention_analysis_service import AttentionAnalysisService
 from app.services.game_result_services import GameResultService
 from app.api.dependinces import get_current_patient, get_current_user
 from app.db.models import Patient, User, UserRole
+from app.services.memory_analysis_services import MemoryAnalysisService
 from app.services.mini_games_services import MiniGameService
 from app.services.session_service import SessionService
 
@@ -122,10 +125,12 @@ async def get_user_data(
         description="Endpoint to create new sessions, game results, and mini-game matrices for a specific user. Only accessible by the user."
     )
 async def create_user_data(
-        session_data: SessionCreate,  # Use SessionCreate for incoming request data
+        session_data: SessionCreate,  
+        background_tasks: BackgroundTasks,
         user_id: UUID = Query(..., description="The ID of the user"),  # Add user_id as a query parameter
         session: AsyncSession = Depends(get_session),
-        current_user: Patient = Depends(get_current_patient)
+        background_session: AsyncSession = Depends(get_session),
+        current_user: Patient = Depends(get_current_patient),
     ):
         # Authorization check: Only the current patient can create data
         if current_user.user_id != user_id:
@@ -137,6 +142,20 @@ async def create_user_data(
         # Use the SessionService to create the session and associated data
         service = SessionService(session )
         created_session_response = await service.create_session(session_data , user_id)
+
+        memory_analysis_service = MemoryAnalysisService(background_session)
+        attention_analysis_service = AttentionAnalysisService(background_session)
+ 
+    #     background_tasks.add_task(
+    #         attention_analysis_service.calculate_and_save_attention_analysis,
+    #         created_session_response.session_id,
+    #    )
+        background_tasks.add_task(
+            memory_analysis_service.calculate_and_save_memory_analysis,
+            created_session_response.session_id,
+            current_user.date_of_birth
+        )
+
         return created_session_response
 
 

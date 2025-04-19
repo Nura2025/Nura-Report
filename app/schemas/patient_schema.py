@@ -6,7 +6,7 @@ from uuid import UUID
 class PatientBase(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=50)
     last_name: str = Field(..., min_length=1, max_length=50)
-    date_of_birth: date
+    date_of_birth: Optional[date]
     gender: Optional[str] = Field(None, max_length=20)
     adhd_subtype: Optional[str] = Field(None, max_length=30)
     diagnosis_date: Optional[date]
@@ -33,12 +33,8 @@ class PatientResponse(PatientBase):
     patient_id: UUID
     created_at: datetime
     updated_at: datetime
-    links: List[Dict[str, str]] = []
-    
-    @classmethod
-    def add_hateoas_links(cls, patient_id: UUID):
-        return [
-            {"rel": "self", "href": f"/patients/{patient_id}"},
-            {"rel": "sessions", "href": f"/patients/{patient_id}/sessions"},
-            {"rel": "clinician", "href": f"/patients/{patient_id}/clinician"}
-        ]
+
+    class  Config:
+        from_attributes = True
+        orm_mode = True
+   

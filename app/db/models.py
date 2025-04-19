@@ -208,8 +208,26 @@ class AttentionAnalysis(SQLModel, table=True):
             server_default=func.now()
         )
     )
-
     session_id: UUID = Field(foreign_key="sessions.session_id")
     crop_score: float
     sequence_score: float
     overall_score: float
+
+class MemoryAnalysis(SQLModel, table=True):
+    __tablename__ = "memory_analysis"
+    __table_args__ = (
+        PrimaryKeyConstraint("analysis_id", "created_at"),
+        {"extend_existing": True}
+    )
+
+    analysis_id: UUID = Field(default_factory=uuid4, primary_key=True, sa_column_kwargs={"server_default": text("gen_random_uuid()")})
+    session_id: UUID = Field(foreign_key="sessions.session_id")
+    overall_memory_score: float
+    working_memory_score: float
+    visual_memory_score: float
+    created_at: datetime = Field(
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now()
+        )
+    )

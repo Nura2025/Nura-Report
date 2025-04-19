@@ -105,7 +105,8 @@ async def get_current_admin(
     return user
 
 async def get_current_clinician(
-    current_user: Annotated[Tuple[Clinician, UserRole], Depends(get_current_user)]
+    current_user: Annotated[Tuple[Clinician, UserRole], Depends(get_current_user)],
+    session: AsyncSession = Depends(get_session),
 ) -> Clinician:
     """
     Verify that the current user is a clinician.
@@ -116,21 +117,41 @@ async def get_current_clinician(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Clinician privileges required"
         )
-    return user
+    result = await session.exec(select(Clinician).where(Clinician.user_id == user.user_id))
+    clinician = result.first()
+
+    if not clinician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Clinician not found",
+        )
+
+    return Clinician
 
 async def get_current_patient(
-    current_user: Annotated[Tuple[Patient, UserRole], Depends(get_current_user)]
+    current_user: Annotated[Tuple[UserRole, UserRole], Depends(get_current_user)],
+    session: AsyncSession = Depends(get_session),
 ) -> Patient:
     """
-    Verify that the current user is a patient.
+    Verify that the current user is a patient and return the Patient object.
     """
     user, role = current_user
+
     if role != UserRole.PATIENT:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Patient privileges required"
+            detail="Patient privileges required",
         )
-    return user
+    result = await session.exec(select(Patient).where(Patient.user_id == user.user_id))
+    patient = result.first()
+
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found",
+        )
+
+    return patient
 
 async def get_current_user_safe(
     token: Optional[str] = Depends(oauth2_scheme),
