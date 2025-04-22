@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlmodel import select
 
-from app.db.models import CropRecognitionMetrics, GameResult, MatchingCardsMetrics, SequenceMemoryMetrics
+from app.db.models import CropRecognitionMetrics, GameResult, MatchingCardsMetrics, SequenceMemoryMetrics, Session
 from app.schemas.mini_games_schema import CropRecognitionMetricCreate, CropRecognitionMetricsResponse, MatchingCardsMetricCreate, MatchingCardsMetricsResponse, SequenceMemoryMetricCreate, SequenceMemoryMetricsResponse
 
 class MiniGameService:
@@ -58,3 +58,17 @@ class MiniGameService:
             result = await self.db.execute(query)
             return result.scalars().all()
 
+
+    async def get_game_result_by_id(self, result_id: UUID) -> GameResult:
+        result = await self.db.execute(
+            select(GameResult).where(GameResult.result_id == result_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_session_by_id(self, session_id: UUID) -> Session:
+        result = await self.db.execute(
+            select(Session).where(Session.session_id == session_id)
+        )
+        return result.scalar_one_or_none()
+
+    

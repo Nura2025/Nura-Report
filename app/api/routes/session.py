@@ -54,11 +54,11 @@ from fastapi import Query  # Import Query for pagination parameters
 async def get_sessions_for_user(
     user_id: UUID,
     session: AsyncSession = Depends(get_session),
-    current_user: Tuple[User, UserRole] = Depends(get_current_user),  # Unpack the tuple
+    current_user: Tuple[User, UserRole] = Depends(get_current_user),  
     limit: int = Query(10, ge=1, le=100),  # Limit the number of results (default: 10, max: 100)
-    offset: int = Query(0, ge=0)  # Offset for pagination (default: 0)
+    offset: int = Query(0, ge=0)  
 ):
-    user, role = current_user  # Unpack the tuple into user and role
+    user, role = current_user  
 
     # Check if the current user is the patient or their clinician
     if role == UserRole.PATIENT and user.user_id != user_id:
@@ -68,7 +68,6 @@ async def get_sessions_for_user(
         )
 
     if role == UserRole.DOCTOR:
-        # Verify if the clinician is associated with the patient
         result = await session.execute(
             select(Patient).where(Patient.user_id == user_id, Patient.clinician_id == user.user_id)
         )
@@ -79,7 +78,6 @@ async def get_sessions_for_user(
                 detail="You do not have permission to access these sessions"
             )
 
-    # Retrieve sessions with pagination
     service = SessionService(session)
     return await service.get_sessions_by_patient_id(user_id, limit=limit, offset=offset)
 

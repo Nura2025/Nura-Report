@@ -45,8 +45,16 @@ class User(UserBase, table=True):
     hashed_password: str = Field(sa_column=Column(String(255), nullable=False))
     
     # Relationships
-    clinician: Optional["Clinician"] = Relationship(back_populates="user")
-    patient: Optional["Patient"] = Relationship(back_populates="user")
+    clinician: Optional["Clinician"] = Relationship(back_populates="user",
+                                                     sa_relationship_kwargs={"cascade": "all, delete-orphan", 
+                                                                        "uselist": False,
+                                                                        "single_parent": True}
+)
+    patient: Optional["Patient"] = Relationship(back_populates="user",
+                                                sa_relationship_kwargs={"cascade": "all, delete-orphan", 
+                                                                        "uselist": False,
+                                                                        "single_parent": True}
+                                              )
 
 class Clinician(SQLModel, table=True):
     __tablename__ = 'clinicians'
@@ -110,7 +118,9 @@ class Session(SQLModel, table=True):
     
     user_id: UUID = Field(foreign_key="patients.user_id", nullable=False)
     patient: "Patient" = Relationship(back_populates="sessions")
-    game_results: List["GameResult"] = Relationship(back_populates="session")
+    game_results: List["GameResult"] = Relationship(back_populates="session",
+                                                    sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+)
 
 
 class GameResult(SQLModel, table=True):
@@ -125,9 +135,15 @@ class GameResult(SQLModel, table=True):
     session_id: UUID = Field(foreign_key="sessions.session_id", nullable=False)
 
     session: "Session" = Relationship(back_populates="game_results")
-    crop_metrics: Optional["CropRecognitionMetrics"] = Relationship(back_populates="game_result")
-    sequence_metrics: Optional["SequenceMemoryMetrics"] = Relationship(back_populates="game_result")
-    matching_metrics: Optional["MatchingCardsMetrics"] = Relationship(back_populates="game_result")
+    crop_metrics: Optional["CropRecognitionMetrics"] = Relationship(back_populates="game_result", 
+                                                                    sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+)
+    sequence_metrics: Optional["SequenceMemoryMetrics"] = Relationship(back_populates="game_result",
+                                                                        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+)
+    matching_metrics: Optional["MatchingCardsMetrics"] = Relationship(back_populates="game_result",
+                                                                     sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+)
 
 class CropRecognitionMetrics(SQLModel, table=True):
     __tablename__ = 'crop_recognition_metrics'
@@ -212,6 +228,8 @@ class AttentionAnalysis(SQLModel, table=True):
     crop_score: float
     sequence_score: float
     overall_score: float
+    percentile: float = Field(default=50.0)
+    classification: str = Field(default="Average")
 
 class MemoryAnalysis(SQLModel, table=True):
     __tablename__ = "memory_analysis"
@@ -222,9 +240,86 @@ class MemoryAnalysis(SQLModel, table=True):
 
     analysis_id: UUID = Field(default_factory=uuid4, primary_key=True, sa_column_kwargs={"server_default": text("gen_random_uuid()")})
     session_id: UUID = Field(foreign_key="sessions.session_id")
+    
     overall_memory_score: float
     working_memory_score: float
     visual_memory_score: float
+    data_completeness: float = Field(default=0.5)  # 0.5 = one game, 1.0 = both games
+    tasks_used: List[str] = Field(sa_column=Column(JSON), default=[])
+    percentile: float = Field(default=50.0)
+    classification: str = Field(default="Average")
+    working_memory_components: Dict[str, float] = Field(sa_column=Column(JSON), default={})
+    visual_memory_components: Dict[str, float] = Field(sa_column=Column(JSON), default={})
+    
+    created_at: datetime = Field(
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now()
+        )
+    )
+
+class ImpulseAnalysis(SQLModel, table=True):
+    __tablename__ = "impulse_analysis"
+    __table_args__ = (
+        PrimaryKeyConstraint("analysis_id", "created_at"),
+        {"extend_existing": True}
+    )
+
+    analysis_id: UUID = Field(default_factory=uuid4, primary_key=True, sa_column_kwargs={"server_default": text("gen_random_uuid()")})
+    session_id: UUID = Field(foreign_key="sessions.session_id")
+    overall_impulse_control_score: float
+    inhibitory_control: float
+    response_control: float
+    decision_speed: float
+    error_adaptation: float
+    data_completeness: float = Field(default=0.33)  # Fraction of games used
+    games_used: List[str] = Field(sa_column=Column(JSON), default=[])
+    percentile: float = Field(default=50.0)
+    classification: str = Field(default="Average")
+    
+    created_at: datetime = Field(
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now()
+        )
+    )
+class ExecutiveFunctionAnalysis(SQLModel, table=True):
+    __tablename__ = "executive_function_analysis"
+    __table_args__ = (
+        PrimaryKeyConstraint("analysis_id", "created_at"),
+        {"extend_existing": True}
+    )
+
+    analysis_id: UUID = Field(default_factory=uuid4, primary_key=True, sa_column_kwargs={"server_default": text("gen_random_uuid()")})
+    session_id: UUID = Field(foreign_key="sessions.session_id")
+    executive_function_score: float
+    
+    # Component contributions
+    memory_contribution: float
+    impulse_contribution: float
+    attention_contribution: float
+    percentile: float = Field(default=50.0)
+    classification: str = Field(default="Average")
+    profile_pattern: str = Field(default="Mixed executive function profile")
+    created_at: datetime = Field(
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now()
+        )
+    )
+
+class NormativeData(SQLModel, table=True):
+    __tablename__ = "normative_data"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True, sa_column_kwargs={"server_default": text("gen_random_uuid()")})
+    domain: str  # "memory", "impulse_control", "executive_function", "attention"
+    age_group: str  # "5-7", "8-10", "11-13", "14-16", "adult"
+    mean_score: float
+    standard_deviation: float
+    sample_size: int = Field(default=100)
+    reference: str  # Scientific reference
+    clinical_group: Optional[str] = Field(default=None)  # "ADHD" or None for typical development
+    reliability: float = Field(default=0.85)
     created_at: datetime = Field(
         sa_column=Column(
             TIMESTAMP(timezone=True),
