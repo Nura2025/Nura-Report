@@ -13,125 +13,116 @@ from app.db.models import (
     MemoryAnalysis, ImpulseAnalysis, ExecutiveFunctionAnalysis, 
     AttentionAnalysis, NormativeData, Session, Patient
 )
+from app.utils.age_utils import get_age_group
 
 router = APIRouter(prefix="/api/cognitive", tags=["cognitive"])
 
-@router.get("/profile/{user_id}")
-async def get_cognitive_profile(
-    user_id: UUID,
-    db: AsyncSession = Depends(get_session)
-):
-    """Get comprehensive cognitive profile for a user."""
-    # Get latest session for the user
-    result = await db.execute(
-        select(Session)
-        .where(Session.user_id == user_id)
-        .order_by(Session.created_at.desc())
-        .limit(1)
-    )
-    session = result.scalar_one_or_none()
+# @router.get("/profile/{user_id}")
+# async def get_cognitive_profile(
+#     user_id: UUID,
+#     db: AsyncSession = Depends(get_session)
+# ):
+#     """Get comprehensive cognitive profile for a user."""
+#     result = await db.execute(
+#         select(Session)
+#         .where(Session.user_id == user_id)
+#         .order_by(Session.created_at.desc())
+#         .limit(1)
+#     )
+#     session = result.scalar_one_or_none()
     
-    if not session:
-        raise HTTPException(status_code=404, detail="No sessions found for user")
+#     if not session:
+#         raise HTTPException(status_code=404, detail="No sessions found for user")
     
-    session_id = session.session_id
-    print(f"Session IDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD: {session_id}")
+#     session_id = session.session_id    
+#     # Get cognitive domain analyses
+#     memory_result = await db.execute(
+#         select(MemoryAnalysis)
+#         .where(MemoryAnalysis.session_id == session_id)
+#         .order_by(MemoryAnalysis.created_at.desc())
+#         .limit(1)
+#     )
+#     memory = memory_result.scalar_one_or_none()
     
-    # Get cognitive domain analyses
-    memory_result = await db.execute(
-        select(MemoryAnalysis)
-        .where(MemoryAnalysis.session_id == "7063f5c4-8868-47bb-bda2-380e6d5b565c")
-        .order_by(MemoryAnalysis.created_at.desc())
-        .limit(1)
-    )
-    memory = memory_result.scalar_one_or_none()
+#     impulse_result = await db.execute(
+#         select(ImpulseAnalysis)
+#         .where(ImpulseAnalysis.session_id == session_id)
+#         .order_by(ImpulseAnalysis.created_at.desc())
+#         .limit(1)
+#     )
+#     impulse = impulse_result.scalar_one_or_none()
     
-    impulse_result = await db.execute(
-        select(ImpulseAnalysis)
-        .where(ImpulseAnalysis.session_id == session_id)
-        .order_by(ImpulseAnalysis.created_at.desc())
-        .limit(1)
-    )
-    impulse = impulse_result.scalar_one_or_none()
+#     executive_result = await db.execute(
+#         select(ExecutiveFunctionAnalysis)
+#         .where(ExecutiveFunctionAnalysis.session_id == session_id)
+#         .order_by(ExecutiveFunctionAnalysis.created_at.desc())
+#         .limit(1)
+#     )
+#     executive = executive_result.scalar_one_or_none()
     
-    executive_result = await db.execute(
-        select(ExecutiveFunctionAnalysis)
-        .where(ExecutiveFunctionAnalysis.session_id == session_id)
-        .order_by(ExecutiveFunctionAnalysis.created_at.desc())
-        .limit(1)
-    )
-    executive = executive_result.scalar_one_or_none()
+#     attention_result = await db.execute(
+#         select(AttentionAnalysis)
+#         .where(AttentionAnalysis.session_id == session_id)
+#         .order_by(AttentionAnalysis.created_at.desc())
+#         .limit(1)
+#     )
+#     attention = attention_result.scalar_one_or_none()
     
-    attention_result = await db.execute(
-        select(AttentionAnalysis)
-        .where(AttentionAnalysis.session_id == session_id)
-        .order_by(AttentionAnalysis.created_at.desc())
-        .limit(1)
-    )
-    attention = attention_result.scalar_one_or_none()
-    print(f"Attentionnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn: {AttentionAnalysis.session_id}")
+#     patient_result = await db.execute(
+#         select(Patient)
+#         .where(Patient.user_id == user_id)
+#     )
+#     patient = patient_result.scalar_one_or_none()
     
-    # Get patient info
-    patient_result = await db.execute(
-        select(Patient)
-        .where(Patient.user_id == user_id)
-    )
-    patient = patient_result.scalar_one_or_none()
+#     if not patient:
+#         raise HTTPException(status_code=404, detail="Patient not found")
     
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+#     today = datetime.utcnow().date()
+#     age = (
+#         today.year
+#         - patient.date_of_birth.year
+#         - ((today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day))
+#     )
     
-    # Calculate age and age group
-    today = datetime.utcnow().date()
-    age = (
-        today.year
-        - patient.date_of_birth.year
-        - ((today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day))
-    )
+#     age_group = get_age_group(age)
+#     # Build profile response
+#     # profile = {
+#     #     "user_id": user_id,
+#     #     "user_name": f"{patient.first_name} {patient.last_name}",
+#     #     "age": age,
+#     #     "age_group": age_group,
+#     #     "gender": patient.gender,
+#     #     "Total_Sessions": ,
+#     #     "first_session_date": ,
+#     #     "last_session_date": ,
+#     #     "adhd_subtype": patient.adhd_subtype,
+#     #     "session_id": session_id,
+#     #     "session_date": session.session_date,
+#     #     "avg_domain_scores": {
+#     #         "attention": float(attention.overall_score) if attention else None,
+#     #         "memory": float(memory.overall_memory_score) if memory else None,
+#     #         "impulse_control": float(impulse.overall_impulse_control_score) if impulse else None,
+#     #         "executive_function": float(executive.executive_function_score) if executive else None
+#     #     },
+#     #     "percentiles": {
+#     #         "attention": float(attention.percentile) if attention else None,
+#     #         "impulse_control": float(impulse.percentile) if impulse else None,
+#     #         "memory": float(memory.percentile) if memory else None,
+#     #         "executive_function": float(executive.percentile) if executive else None
+#     #     },
+#     #     "classifications": {
+#     #         "memory": memory.classification if memory else None,
+#     #         "executive_function": executive.classification if executive else None
+#     #     }
+#     # }
     
-    if age < 8:
-        age_group = "5-7"
-    elif age < 11:
-        age_group = "8-10"
-    elif age < 14:
-        age_group = "11-13"
-    elif age < 17:
-        age_group = "14-16"
-    else:
-        age_group = "adult"
+#     # Add executive function profile details if available
+#     if executive:
+#         profile.update({
+#             "profile_pattern": executive.profile_pattern,
+#         })
     
-    # Build profile response
-    profile = {
-        "user_id": user_id,
-        "user_name": f"{patient.first_name} {patient.last_name}",
-        "age": age,
-        "age_group": age_group,
-        "adhd_subtype": patient.adhd_subtype,
-        "session_id": session_id,
-        "session_date": session.session_date,
-        "domain_scores": {
-            "attention": float(attention.overall_score) if attention else None,
-            "memory": float(memory.overall_memory_score) if memory else None,
-            "impulse_control": float(impulse.overall_impulse_control_score) if impulse else None,
-            "executive_function": float(executive.executive_function_score) if executive else None
-        },
-        "percentiles": {
-            "memory": float(memory.percentile) if memory else None,
-            "executive_function": float(executive.percentile) if executive else None
-        },
-        "classifications": {
-            "memory": memory.classification if memory else None,
-            "executive_function": executive.classification if executive else None
-        }
-    }
-    
-    # Add executive function profile details if available
-    if executive:
-        profile.update({
-            "profile_pattern": executive.profile_pattern,
-        })
-    
-    return profile
+#     return profile
 
 @router.get("/timeseries/{user_id}")
 async def get_cognitive_timeseries(
@@ -397,17 +388,7 @@ async def get_normative_comparison(
         - ((today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day))
     )
     
-    if age < 8:
-        age_group = "5-7"
-    elif age < 11:
-        age_group = "8-10"
-    elif age < 14:
-        age_group = "11-13"
-    elif age < 17:
-        age_group = "14-16"
-    else:
-        age_group = "adult"
-    
+    age_group = get_age_group(age)
     # Get latest score
     query = f"""
         SELECT 

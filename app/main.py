@@ -24,6 +24,7 @@ app.include_router(session.router)
 app.include_router(mini_games.router)
 app.include_router(game_results.router)
 app.include_router(analytics.router)
+app.include_router(patient.router)
 
 # Configure CORS
 app.add_middleware(

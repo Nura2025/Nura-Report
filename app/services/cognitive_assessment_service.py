@@ -24,9 +24,8 @@ class CognitiveAssessmentService:
         self.db = db
     
     async def calculate_and_save_cognitive_assessment(self, session_id: UUID, date_of_birth: Optional[datetime]):
-        """Calculate and save comprehensive cognitive assessment for a session."""
+        """Calculate and save comprehensive cognitive assessment for one session."""
         try:
-              # Calculate age group if date_of_birth is provided
             age_group = None
             if date_of_birth:
                 today = datetime.utcnow().date()
@@ -36,7 +35,6 @@ class CognitiveAssessmentService:
                     - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
                 )
                 age_group = get_age_group(age)
-            # Fetch game results with metrics
             result = await self.db.execute(
                 select(GameResult)
                 .where(GameResult.session_id == session_id)
@@ -47,8 +45,6 @@ class CognitiveAssessmentService:
                 )
             )
             game_results = result.scalars().all()
-            
-            # Extract metrics
             sequence_metrics = {}
             crop_metrics = {}
             matching_metrics = {}
@@ -80,16 +76,13 @@ class CognitiveAssessmentService:
                         "time_per_match": game_result.matching_metrics.time_per_match
                     }
             
-            # Calculate memory score
             memory_result = compute_memory_score(
-                # Sequence metrics
                 sequence_length=sequence_metrics.get("sequence_length", 0),
                 commission_errors=sequence_metrics.get("commission_errors", 0),
                 num_of_trials=sequence_metrics.get("num_of_trials", 0),
                 retention_times=sequence_metrics.get("retention_times", []),
                 total_sequence_elements=sequence_metrics.get("total_sequence_elements", 0),
                 
-                # Matching card metrics
                 correct_matches=matching_metrics.get("correct_matches", 0),
                 incorrect_matches=matching_metrics.get("incorrect_matches", 0),
                 matches_attempted=matching_metrics.get("matches_attempted", 0),
@@ -98,7 +91,6 @@ class CognitiveAssessmentService:
                 age_group=age_group
             )
 
-              # Calculate attention scores
             crop_score = compute_crop_attention_score(
                 crops_identified=crop_metrics.get("crops_identified", 0),
                 omission_errors=crop_metrics.get("omission_errors", 0),
@@ -119,9 +111,7 @@ class CognitiveAssessmentService:
 
             overall_attention_score = compute_overall_attention_score(crop_score, sequence_score)
             
-            # Calculate impulse control score
             impulse_result = compute_impulse_control_score(
-                # Sequence metrics
                 commission_errors=sequence_metrics.get("commission_errors", 0),
                 total_sequence_elements=sequence_metrics.get("total_sequence_elements", 0),
                 retention_times=sequence_metrics.get("retention_times", []),
@@ -135,7 +125,6 @@ class CognitiveAssessmentService:
                 age_group=age_group
             )
             
-            # Calculate executive function score
             executive_result = self.compute_executive_function_score(
                 memory_score=memory_result["overall_memory_score"],
                 impulse_score=impulse_result["overall_impulse_control_score"],
@@ -222,7 +211,8 @@ class CognitiveAssessmentService:
             return {
                 "memory_analysis": memory_analysis,
                 "impulse_analysis": impulse_analysis,
-                "executive_analysis": executive_analysis
+                "executive_analysis": executive_analysis,
+                "attention_analysis": attention_analysis        
             }
             
         except Exception as e:
@@ -275,7 +265,6 @@ class CognitiveAssessmentService:
             executive_score += attention_contribution
             total_weight += weights['attention']
 
-        # Normalize score if total weight ≠ 1 (just to be extra robust)
         if total_weight > 0:
             executive_score /= total_weight
 
