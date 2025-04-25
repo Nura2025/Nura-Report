@@ -13,36 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.utils.authchecker import AuthChecker
+from fastapi import Query  
 
 
 
 router = APIRouter(tags=["session"])
 
-# Endpoint to create a new game session
-# This endpoint is called by the Unity game client after gameplay.
-@router.post(
-    "/sessions",
-    response_model=SessionCreateResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new game session",
-    description="Endpoint for Unity game client to record a new gameplay session. Only accessible by patients."
-)
-async def create_session(
-    session_data: SessionCreate,
-    session: AsyncSession = Depends(get_session),
-    current_user: Patient = Depends(get_current_patient)
-):
-    if session_data.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Can only create sessions for your own account"
-        )
 
-    service = SessionService(session)
-    return await service.create_session(session_data)
-
-
-from fastapi import Query  # Import Query for pagination parameters
 
 @router.get(
     "/sessions/{user_id}",

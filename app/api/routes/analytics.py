@@ -2,127 +2,130 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
+from sqlalchemy import Tuple, text, select
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from uuid import UUID
-
+from sqlmodel import func
+from app.api.dependinces import get_current_user
 from app.db.database import get_session
 from app.services.cognitive_assessment_service import CognitiveAssessmentService
 from app.db.models import (
     MemoryAnalysis, ImpulseAnalysis, ExecutiveFunctionAnalysis, 
-    AttentionAnalysis, NormativeData, Session, Patient
+    AttentionAnalysis, NormativeData, Session, Patient, User, UserRole
 )
 from app.utils.age_utils import get_age_group
 
 router = APIRouter(prefix="/api/cognitive", tags=["cognitive"])
 
-# @router.get("/profile/{user_id}")
-# async def get_cognitive_profile(
-#     user_id: UUID,
-#     db: AsyncSession = Depends(get_session)
-# ):
-#     """Get comprehensive cognitive profile for a user."""
-#     result = await db.execute(
-#         select(Session)
-#         .where(Session.user_id == user_id)
-#         .order_by(Session.created_at.desc())
-#         .limit(1)
-#     )
-#     session = result.scalar_one_or_none()
-    
-#     if not session:
-#         raise HTTPException(status_code=404, detail="No sessions found for user")
-    
-#     session_id = session.session_id    
-#     # Get cognitive domain analyses
-#     memory_result = await db.execute(
-#         select(MemoryAnalysis)
-#         .where(MemoryAnalysis.session_id == session_id)
-#         .order_by(MemoryAnalysis.created_at.desc())
-#         .limit(1)
-#     )
-#     memory = memory_result.scalar_one_or_none()
-    
-#     impulse_result = await db.execute(
-#         select(ImpulseAnalysis)
-#         .where(ImpulseAnalysis.session_id == session_id)
-#         .order_by(ImpulseAnalysis.created_at.desc())
-#         .limit(1)
-#     )
-#     impulse = impulse_result.scalar_one_or_none()
-    
-#     executive_result = await db.execute(
-#         select(ExecutiveFunctionAnalysis)
-#         .where(ExecutiveFunctionAnalysis.session_id == session_id)
-#         .order_by(ExecutiveFunctionAnalysis.created_at.desc())
-#         .limit(1)
-#     )
-#     executive = executive_result.scalar_one_or_none()
-    
-#     attention_result = await db.execute(
-#         select(AttentionAnalysis)
-#         .where(AttentionAnalysis.session_id == session_id)
-#         .order_by(AttentionAnalysis.created_at.desc())
-#         .limit(1)
-#     )
-#     attention = attention_result.scalar_one_or_none()
-    
-#     patient_result = await db.execute(
-#         select(Patient)
-#         .where(Patient.user_id == user_id)
-#     )
-#     patient = patient_result.scalar_one_or_none()
-    
-#     if not patient:
-#         raise HTTPException(status_code=404, detail="Patient not found")
-    
-#     today = datetime.utcnow().date()
-#     age = (
-#         today.year
-#         - patient.date_of_birth.year
-#         - ((today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day))
-#     )
-    
-#     age_group = get_age_group(age)
-#     # Build profile response
-#     # profile = {
-#     #     "user_id": user_id,
-#     #     "user_name": f"{patient.first_name} {patient.last_name}",
-#     #     "age": age,
-#     #     "age_group": age_group,
-#     #     "gender": patient.gender,
-#     #     "Total_Sessions": ,
-#     #     "first_session_date": ,
-#     #     "last_session_date": ,
-#     #     "adhd_subtype": patient.adhd_subtype,
-#     #     "session_id": session_id,
-#     #     "session_date": session.session_date,
-#     #     "avg_domain_scores": {
-#     #         "attention": float(attention.overall_score) if attention else None,
-#     #         "memory": float(memory.overall_memory_score) if memory else None,
-#     #         "impulse_control": float(impulse.overall_impulse_control_score) if impulse else None,
-#     #         "executive_function": float(executive.executive_function_score) if executive else None
-#     #     },
-#     #     "percentiles": {
-#     #         "attention": float(attention.percentile) if attention else None,
-#     #         "impulse_control": float(impulse.percentile) if impulse else None,
-#     #         "memory": float(memory.percentile) if memory else None,
-#     #         "executive_function": float(executive.percentile) if executive else None
-#     #     },
-#     #     "classifications": {
-#     #         "memory": memory.classification if memory else None,
-#     #         "executive_function": executive.classification if executive else None
-#     #     }
-#     # }
-    
-#     # Add executive function profile details if available
-#     if executive:
-#         profile.update({
-#             "profile_pattern": executive.profile_pattern,
-#         })
-    
-#     return profile
+@router.get("/profile/{user_id}")
+async def get_cognitive_profile(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_session),
+    current_user: Tuple[User, UserRole] = Depends(get_current_user),
+):
+    """
+    Get comprehensive cognitive profile for a user, including trend graph data.
+    """
+    patient_result = await db.execute(
+        select(Patient).where(Patient.user_id == user_id)
+    )
+    patient = patient_result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    avg_memory_score = await db.execute(
+        select(func.avg(MemoryAnalysis.overall_memory_score))
+        .join(Session, MemoryAnalysis.session_id == Session.session_id)
+        .where(Session.user_id == user_id)
+    )
+    avg_memory_score = avg_memory_score.scalar_one_or_none() or 0.0
+
+    avg_attention_score = await db.execute(
+        select(func.avg(AttentionAnalysis.overall_score))
+        .join(Session, AttentionAnalysis.session_id == Session.session_id)
+        .where(Session.user_id == user_id)
+    )
+    avg_attention_score = avg_attention_score.scalar_one_or_none() or 0.0
+
+    avg_impulse_score = await db.execute(
+        select(func.avg(ImpulseAnalysis.overall_impulse_control_score))
+        .join(Session, ImpulseAnalysis.session_id == Session.session_id)
+        .where(Session.user_id == user_id)
+    )
+    avg_impulse_score = avg_impulse_score.scalar_one_or_none() or 0.0
+
+    avg_executive_score = await db.execute(
+        select(func.avg(ExecutiveFunctionAnalysis.executive_function_score))
+        .join(Session, ExecutiveFunctionAnalysis.session_id == Session.session_id)
+        .where(Session.user_id == user_id)
+    )
+    avg_executive_score = avg_executive_score.scalar_one_or_none() or 0.0
+
+    trend_query = text("""
+        SELECT 
+            s.session_date AS session_date,
+            COALESCE(ma.overall_memory_score, 0) AS memory_score,
+            COALESCE(aa.overall_score, 0) AS attention_score,
+            COALESCE(ia.overall_impulse_control_score, 0) AS impulse_score,
+            COALESCE(ea.executive_function_score, 0) AS executive_score
+        FROM sessions s
+        LEFT JOIN memory_analysis ma ON s.session_id = ma.session_id
+        LEFT JOIN attention_analysis aa ON s.session_id = aa.session_id
+        LEFT JOIN impulse_analysis ia ON s.session_id = ia.session_id
+        LEFT JOIN executive_function_analysis ea ON s.session_id = ea.session_id
+        WHERE s.user_id = :user_id
+        ORDER BY s.session_date ASC
+    """)
+    trend_result = await db.execute(trend_query, {"user_id": str(user_id)})
+    trend_data = trend_result.fetchall()
+
+    trend_graph = [
+        {
+            "session_date": row.session_date,
+            "overall_score": round(
+                (row.memory_score + row.attention_score + row.impulse_score + row.executive_score) / 4, 2
+            ),
+        }
+        for row in trend_data
+    ]
+
+    today = datetime.utcnow().date()
+    age = (
+        today.year
+        - patient.date_of_birth.year
+        - ((today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day))
+    )
+    age_group = get_age_group(age)
+
+    session_stats = await db.execute(
+        select(
+            func.count(Session.session_id).label("total_sessions"),
+            func.min(Session.session_date).label("first_session_date"),
+            func.max(Session.session_date).label("last_session_date")
+        ).where(Session.user_id == user_id)
+    )
+    stats = session_stats.first()
+    profile = {
+        "user_id": user_id,
+        "user_name": f"{patient.first_name} {patient.last_name}",
+        "age": age,
+        "age_group": age_group,
+        "gender": patient.gender,
+        "total_sessions": stats.total_sessions if stats else 0,
+        "first_session_date": stats.first_session_date if stats else None,
+        "last_session_date": stats.last_session_date if stats else None,
+        "adhd_subtype": patient.adhd_subtype,
+        "avg_domain_scores": {
+            "memory": avg_memory_score,
+            "attention": avg_attention_score,
+            "impulse_control": avg_impulse_score,
+            "executive_function": avg_executive_score,
+        },
+        "trend_graph": trend_graph,
+    }
+
+    return profile
 
 @router.get("/timeseries/{user_id}")
 async def get_cognitive_timeseries(
