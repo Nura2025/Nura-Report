@@ -26,7 +26,6 @@ class GameResultService:
         if end_time and end_time.tzinfo is not None:
             end_time = end_time.astimezone(timezone.utc).replace(tzinfo=None)
 
-        # Create a new GameResult instance
         new_game_result = GameResult(
             session_id=session_id,
             game_type=game_result_data.game_type,

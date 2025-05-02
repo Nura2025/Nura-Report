@@ -18,6 +18,71 @@ from app.utils.age_utils import get_age_group
 
 router = APIRouter(prefix="/api/cognitive", tags=["cognitive"])
 
+DOMAIN_CONFIG = {
+    "memory": {
+        "model": MemoryAnalysis,
+        "build_response": lambda obj: {
+            "overall_score": float(obj.overall_memory_score),
+            "percentile": float(obj.percentile),
+            "classification": obj.classification,
+            "components": {
+                "working_memory": {
+                    "score": float(obj.working_memory_score),
+                    "components": obj.working_memory_components
+                },
+                "visual_memory": {
+                    "score": float(obj.visual_memory_score),
+                    "components": obj.visual_memory_components
+                }
+            },
+            "data_completeness": float(obj.data_completeness),
+            "tasks_used": obj.tasks_used
+        }
+    },
+    "impulse_control": {
+        "model": ImpulseAnalysis,
+        "build_response": lambda obj: {
+            "overall_score": float(obj.overall_impulse_control_score),
+            "percentile": float(obj.percentile),
+            "classification": obj.classification,
+            "components": {
+                "inhibitory_control": float(obj.inhibitory_control),
+                "response_control": float(obj.response_control),
+                "decision_speed": float(obj.decision_speed),
+                "error_adaptation": float(obj.error_adaptation)
+            },
+            "data_completeness": float(obj.data_completeness),
+            "games_used": obj.games_used
+        }
+    },
+    "attention": {
+        "model": AttentionAnalysis,
+        "build_response": lambda obj: {
+            "overall_score": float(obj.overall_score),
+            "percentile": float(obj.percentile),
+            "classification": obj.classification,
+            "components": {
+                "crop_score": float(obj.crop_score),
+                "sequence_score": float(obj.sequence_score)
+            }
+        }
+    },
+    "executive_function": {
+        "model": ExecutiveFunctionAnalysis,
+        "build_response": lambda obj: {
+            "overall_score": float(obj.executive_function_score),
+            "percentile": float(obj.percentile),
+            "classification": obj.classification,
+            "components": {
+                "memory_contribution": float(obj.memory_contribution),
+                "impulse_contribution": float(obj.impulse_contribution),
+                "attention_contribution": float(obj.attention_contribution)
+            },
+            "profile_pattern": obj.profile_pattern
+        }
+    }
+}
+
 @router.get("/profile/{user_id}")
 async def get_cognitive_profile(
     user_id: UUID,
@@ -64,6 +129,7 @@ async def get_cognitive_profile(
 
     trend_query = text("""
         SELECT 
+            s.session_id AS session_id,
             s.session_date AS session_date,
             COALESCE(ma.overall_memory_score, 0) AS memory_score,
             COALESCE(aa.overall_score, 0) AS attention_score,
@@ -80,8 +146,11 @@ async def get_cognitive_profile(
     trend_result = await db.execute(trend_query, {"user_id": str(user_id)})
     trend_data = trend_result.fetchall()
 
+   
+
     trend_graph = [
         {
+            "session_id": str(row.session_id),
             "session_date": row.session_date,
             "attention_score": float(row.attention_score),
             "memory_score": float(row.memory_score),
@@ -284,75 +353,39 @@ async def get_cognitive_progress(
         "percentage_change": float(data.percentage_change)
     }
 
+async def fetch_latest_analysis(db: AsyncSession, model, session_id: UUID):
+    result = await db.execute(
+        select(model)
+        .where(model.session_id == session_id)
+        .order_by(model.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
 @router.get("/component-details/{session_id}")
 async def get_component_details(
     session_id: UUID,
-    domain: str = Query(..., description="Cognitive domain: memory, impulse_control"),
+    domain: str = Query(..., description="One of: memory, impulse_control, attention, executive_function"),
     db: AsyncSession = Depends(get_session)
 ):
-    """Get detailed component scores for a cognitive domain."""
-    if domain == "memory":
-        result = await db.execute(
-            select(MemoryAnalysis)
-            .where(MemoryAnalysis.session_id == session_id)
-            .order_by(MemoryAnalysis.created_at.desc())
-            .limit(1)
-        )
-        memory = result.scalar_one_or_none()
-        
-        if not memory:
-            raise HTTPException(status_code=404, detail="No memory analysis found for session")
-        
-        return {
-            "session_id": session_id,
-            "domain": domain,
-            "overall_score": float(memory.overall_memory_score),
-            "percentile": float(memory.percentile),
-            "classification": memory.classification,
-            "components": {
-                "working_memory": {
-                    "score": float(memory.working_memory_score),
-                    "components": memory.working_memory_components
-                },
-                "visual_memory": {
-                    "score": float(memory.visual_memory_score),
-                    "components": memory.visual_memory_components
-                }
-            },
-            "data_completeness": float(memory.data_completeness),
-            "tasks_used": memory.tasks_used
-        }
-    
-    elif domain == "impulse_control":
-        result = await db.execute(
-            select(ImpulseAnalysis)
-            .where(ImpulseAnalysis.session_id == session_id)
-            .order_by(ImpulseAnalysis.created_at.desc())
-            .limit(1)
-        )
-        impulse = result.scalar_one_or_none()
-        
-        if not impulse:
-            raise HTTPException(status_code=404, detail="No impulse control analysis found for session")
-        
-        return {
-            "session_id": session_id,
-            "domain": domain,
-            "overall_score": float(impulse.overall_impulse_control_score),
-            "classification": impulse.classification,
-            "components": {
-                "inhibitory_control": float(impulse.inhibitory_control),
-                "response_control": float(impulse.response_control),
-                "decision_speed": float(impulse.decision_speed),
-                "error_adaptation": float(impulse.error_adaptation)
-            },
-            "data_completeness": float(impulse.data_completeness) if hasattr(impulse, 'data_completeness') else 1.0,
-            "games_used": impulse.games_used if hasattr(impulse, 'games_used') else []
-        }
-    
-    else:
-        raise HTTPException(status_code=400, detail="Domain must be 'memory' or 'impulse_control'")
+    domain_config = DOMAIN_CONFIG.get(domain)
 
+    if not domain_config:
+        raise HTTPException(status_code=400, detail="Invalid domain")
+
+    model = domain_config["model"]
+    builder = domain_config["build_response"]
+
+    obj = await fetch_latest_analysis(db, model, session_id)
+
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"No {domain} analysis found for session")
+
+    return {
+        "session_id": session_id,
+        "domain": domain,
+        **builder(obj)
+    }
 @router.get("/normative-comparison/{user_id}")
 async def get_normative_comparison(
     user_id: UUID,

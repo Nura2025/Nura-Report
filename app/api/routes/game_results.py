@@ -7,13 +7,10 @@ from sqlmodel import select
 from app.db.database import get_session
 from app.schemas.game_result_schema import GameResultCropCreate, GameResultMatchingCreate, GameResultSequenceCreate
 from app.schemas.sessions_schema import SessionCreate, SessionCreateResponse, SessionResponse
-from app.services.attention_analysis_service import AttentionAnalysisService
 from app.services.cognitive_assessment_service import CognitiveAssessmentService
 from app.services.game_result_services import GameResultService
 from app.api.dependinces import get_current_patient, get_current_user
 from app.db.models import Patient, User, UserRole
-from app.services.impulse_analysis_service import ImpulseAnalysisService
-from app.services.memory_analysis_services import MemoryAnalysisService
 from app.services.mini_games_services import MiniGameService
 from app.services.session_service import SessionService
 

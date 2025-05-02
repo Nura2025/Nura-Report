@@ -1,10 +1,11 @@
 # app/api/dependencies.py
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Union, Annotated
+from uuid import UUID
 from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlmodel import Session, select
+from sqlmodel import Session, select, text
 from app.db.models import User, Patient, Clinician, UserRole
 from app.db.database import get_session
 from app.services.auth_service import AuthService
@@ -168,5 +169,74 @@ async def get_current_user_safe(
         return await get_current_user(token, session)
     except HTTPException:
         return None
+
+async def authorize_user_resource(
+    user_id: UUID,
+    current_user: Tuple[User, UserRole] = Depends(get_current_user)
+) -> None:
+    """
+    Authorize access to a user resource.
+    
+    Args:
+        user_id: ID of the user resource being accessed
+        current_user: Current authenticated user
+        
+    Raises:
+        HTTPException: If user is not authorized to access the resource
+    """
+    user, role = current_user
+    if role != UserRole.DOCTOR and role != UserRole.ADMIN and str(user.user_id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+
+async def authorize_session_resource(
+    session_id: UUID,
+    current_user: Tuple[User, UserRole] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session)
+) -> None:
+    """
+    Authorize access to a session resource.
+    
+    Args:
+        session_id: ID of the session resource being accessed
+        current_user: Current authenticated user
+        db: Database session
+        
+    Raises:
+        HTTPException: If user is not authorized to access the resource
+    """
+    user, role = current_user
+    
+    # Doctors and admins can access any session
+    if role == UserRole.DOCTOR or role == UserRole.ADMIN:
+        return
+    
+    # For other users, check if the session belongs to them
+    query = "SELECT user_id FROM sessions WHERE session_id = :session_id"
+    result = await db.execute(text(query), {"session_id": str(session_id)})
+    session_data = result.first()
+    
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    if str(user.user_id) != str(session_data.user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+
+async def authorize_cache_invalidation(
+    user_id: UUID,
+    current_user: Tuple[User, UserRole] = Depends(get_current_user)
+) -> None:
+    """
+    Authorize cache invalidation for a user.
+    
+    Args:
+        user_id: ID of the user whose cache is being invalidated
+        current_user: Current authenticated user
+        
+    Raises:
+        HTTPException: If user is not authorized to invalidate the cache
+    """
+    user, role = current_user
+    if role != UserRole.DOCTOR and role != UserRole.ADMIN and str(user.user_id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to invalidate cache")
 
 
