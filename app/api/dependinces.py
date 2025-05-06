@@ -37,45 +37,31 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: AsyncSession = Depends(get_session)
 ) -> Tuple[Union[User, Patient, Clinician], UserRole]:
-
     """
     Get the current authenticated user from the JWT token.
-    
-    Returns:
-        Tuple of (user_object, user_role)
-    
-    Raises:
-        HTTPException: 401 if credentials are invalid
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         email: str = payload.get("sub")
         user_role_str: str = payload.get("user_role")
-        
         if email is None or user_role_str is None:
             raise credentials_exception
-            
-        try:
-            user_role = UserRole(user_role_str)
-        except ValueError:
-            raise credentials_exception
-            
+        user_role = UserRole(user_role_str)
         token_data = TokenData(email=email, user_role=user_role)
     except JWTError:
         raise credentials_exception
-    
-    # Get user from database
-    result = await session.exec(select(User).where(User.email == token_data.email))
-    user = result.first()
+
+    result = await session.execute(select(User).where(User.email == token_data.email))
+    user = result.scalar_one_or_none()
     if user is None or not user.is_active:
-        raise credentials_exception      
+        raise credentials_exception
     return user, token_data.user_role
+
 
 async def get_current_active_user(
     current_user: Annotated[Tuple[Union[User, Patient, Clinician], UserRole], Depends(get_current_user)]
@@ -118,8 +104,8 @@ async def get_current_clinician(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Clinician privileges required"
         )
-    result = await session.exec(select(Clinician).where(Clinician.user_id == user.user_id))
-    clinician = result.first()
+    result = await session.execute(select(Clinician).where(Clinician.user_id == user.user_id))
+    clinician = result.scalar_one_or_none()
 
     if not clinician:
         raise HTTPException(
@@ -127,7 +113,7 @@ async def get_current_clinician(
             detail="Clinician not found",
         )
 
-    return Clinician
+    return clinician
 
 async def get_current_patient(
     current_user: Annotated[Tuple[UserRole, UserRole], Depends(get_current_user)],

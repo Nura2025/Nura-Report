@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from uuid import UUID
 from app.db.models import GameResult, Session
-from app.schemas.game_result_schema import GameResultBase, GameResultCreate, GameResultCropCreate, GameResultMatchingCreate, GameResultResponse, GameResultSequenceCreate
+from app.schemas.game_result_schema import GameResultBase, GameResultCreate, GameResultMatchingCreate, GameResultResponse, GameResultSequenceCreate
 from app.utils.logger import logger
 
 from app.services.mini_games_services import MiniGameService
@@ -43,7 +43,7 @@ class GameResultService:
             select(GameResult)
             .where(GameResult.result_id == new_game_result.result_id)
             .options(
-                selectinload(GameResult.crop_metrics),
+                selectinload(GameResult.go_no_go_metrics),
                 selectinload(GameResult.sequence_metrics),
                 selectinload(GameResult.matching_metrics),
             )
@@ -57,7 +57,7 @@ class GameResultService:
             .join(Session)
             .where(Session.user_id == user_id)
             .options(
-                selectinload(GameResult.crop_metrics),
+                selectinload(GameResult.go_no_go_metrics),
                 selectinload(GameResult.sequence_metrics),
                 selectinload(GameResult.matching_metrics),
             )

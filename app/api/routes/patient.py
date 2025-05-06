@@ -1,17 +1,98 @@
 # app/routers/patients.py
+from datetime import datetime, timedelta
+import secrets
 from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException , status
+from pydantic import EmailStr
 from sqlalchemy import select
 from sqlmodel import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependinces import get_current_clinician
-from app.db.models import Clinician ,Patient
+from app.api.dependinces import get_current_clinician, get_current_patient, get_current_user
+from app.db.models import Clinician ,Patient, User
 from app.schemas.auth_schema import PatientResponse
 from app.db.database import get_session
 
 router = APIRouter(tags=["Patients"])
+
+from datetime import datetime, timedelta
+import secrets
+from app.db.models import InvitationToken
+
+@router.post("/generate-invitation-link", status_code=status.HTTP_200_OK)
+async def generate_invitation_link(
+    patient_email: EmailStr,
+    current_clinician: Clinician = Depends(get_current_clinician),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Generate a unique invitation link for the clinician to share with a patient.
+    """
+    # Generate a secure token
+    token = secrets.token_urlsafe(32)
+    expiration = datetime.utcnow() + timedelta(hours=24)  # Token expires in 24 hours
+
+    # Save the token in the database
+    invitation = InvitationToken(
+        token=token,
+        clinician_id=current_clinician.user_id,
+        patient_email=patient_email,  # Include patient_email
+
+        expires_at=expiration,
+        used=False,
+    )
+    session.add(invitation)
+    await session.commit()
+
+    # Generate the invitation link
+    invitation_link = f"http://127.0.0.1:8000/accept-invitation?token={token}"
+    return {"invitation_link": invitation_link}
+
+
+@router.get("/accept-invitation", status_code=status.HTTP_200_OK)
+async def accept_invitation(
+    token: str,
+    current_patient: Patient = Depends(get_current_patient),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Accept an invitation and assign the clinician to the patient.
+    """
+    # Validate the token
+    result = await session.execute(select(InvitationToken).where(InvitationToken.token == token))
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid invitation token."
+        )
+
+    if invitation.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This invitation token has already been used."
+        )
+
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This invitation token has expired."
+        )
+
+    # Assign the clinician to the patient
+    current_patient.clinician_id = invitation.clinician_id
+    session.add(current_patient)
+
+    # Mark the token as used
+    invitation.used = True
+    session.add(invitation)
+
+    await session.commit()
+    await session.refresh(current_patient)
+
+    return {"message": "You have successfully accepted the invitation."}
 
 @router.get("/{clinician_id}/patients", status_code=status.HTTP_200_OK)
 async def get_all_patients_for_clinician(
