@@ -13,6 +13,7 @@ from app.api.dependinces import get_current_clinician, get_current_patient, get_
 from app.db.models import Clinician ,Patient, User
 from app.schemas.auth_schema import PatientResponse
 from app.db.database import get_session
+from app.schemas.user_schema import UserUpdateByEmail
 
 router = APIRouter(tags=["Patients"])
 
@@ -49,6 +50,37 @@ async def generate_invitation_link(
     invitation_link = f"http://127.0.0.1:8000/accept-invitation?token={token}"
     return {"invitation_link": invitation_link}
 
+@router.patch("/update-user-by-email")
+async def update_user_by_email(
+    update_data: UserUpdateByEmail,
+    session: AsyncSession = Depends(get_session),
+):
+    # Fetch the user
+    result = await session.execute(select(User).where(User.email == update_data.email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update allowed fields in User
+    if update_data.username:
+        user.username = update_data.username
+    session.add(user)
+
+    # Check if patient exists for this user
+    result = await session.execute(select(Patient).where(Patient.user_id == user.user_id))
+    patient = result.scalar_one_or_none()
+
+    if patient:
+        # Update allowed fields in Patient
+        for field in ["first_name", "last_name", "gender", "date_of_birth", "phone_number"]:
+            value = getattr(update_data, field)
+            if value is not None:
+                setattr(patient, field, value)
+        session.add(patient)
+
+    await session.commit()
+    return {"message": "User and patient profile updated successfully"}
 
 @router.get("/accept-invitation", status_code=status.HTTP_200_OK)
 async def accept_invitation(
@@ -98,9 +130,9 @@ async def accept_invitation(
 async def get_all_patients_for_clinician(
     clinician_id: UUID,
     session: AsyncSession = Depends(get_session),
-    # current_user: Clinician = Depends(get_current_clinician),  
+    # current_user: Clinician = Depends(get_current_clinician),
 ):
-    
+
     result = await session.execute(select(Clinician).where(Clinician.user_id == clinician_id))
     clinician = result.scalar_one_or_none()
 
@@ -128,7 +160,7 @@ async def get_patient_for_clinician(
     clinician_id: UUID,
     patient_id: UUID,
     session: AsyncSession = Depends(get_session),
-    current_user: Clinician = Depends(get_current_clinician),  
+    current_user: Clinician = Depends(get_current_clinician),
 ):
     """
     Retrieve a specific patient for a clinician.
@@ -184,13 +216,13 @@ async def get_patient_for_clinician(
 #     patient = session.get(Patient, patient_id)
 #     if not patient:
 #         raise HTTPException(status_code=404, detail="Patient not found")
-    
+
 #     if patient.clinician_id != current_user.clinician_id:
 #         raise HTTPException(status_code=403, detail="Not authorized to update this patient")
-    
+
 #     for key, value in update_data.dict(exclude_unset=True).items():
 #         setattr(patient, key, value)
-    
+
 #     session.add(patient)
 #     session.commit()
 #     session.refresh(patient)
