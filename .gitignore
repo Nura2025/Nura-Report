@@ -1,0 +1,9 @@
+.env
+app/_pycache
+app/api/_pycache
+app/api/routes/_pycache
+app/api/services/_pycache
+app/api/utils/_pycache
+app/api/db/_pycache
+app/api/schemas/_pycache
+app/api/calculation/_pycache
