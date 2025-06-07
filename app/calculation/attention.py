@@ -2,85 +2,109 @@ import math
 import statistics
 from typing import Dict, List, Optional, Union, Tuple
 
-def compute_crop_attention_score(
-    crops_identified: int,
+import statistics
+import math
+
+def compute_gonogo_attention_score(
+    commission_errors: int,
     omission_errors: int,
-    response_times: Dict[str, float],
-    distractions: int,
-    total_crops_presented: int,
+    correct_go_responses: int,
+    correct_nogo_responses: int,
+    average_reaction_time_ms: float,
+    reaction_time_variability_ms: float,
     age_group: Optional[str] = None
 ) -> float:
     """
-    Calculate attention score based on crop recognition metrics.
-    
-    Parameters:
-    -----------
-    crops_identified : int
-        Number of crops correctly identified
-    omission_errors : int
-        Number of missed crops (false negatives)
-    response_times : Dict[str, float]
-        Dictionary of response times in milliseconds
-    distractions : int
-        Number of times distracted by non-target stimuli
-    total_crops_presented : int
-        Total number of crops presented
-    age_group : str, optional
-        Age group for normative comparison ("5-7", "8-10", "11-13", "14-16")
-        
+    Calculate attention score based on Go/No-Go task metrics.
+
+    Focuses on sustained attention (omission errors) and response consistency (RT variability).
+
     Returns:
-    --------
-    float
-        Attention score (0-100)
-        
+        float: Attention score (0-100)
+
     References:
-    -----------
-    Based on Willcutt et al. (2005) meta-analysis of attention measures in ADHD
+        - Sustained attention & omissions: Robertson et al. (1997) - Test of Everyday Attention (TEA)
+        - RT Variability: Castellanos & Tannock (2002), Kofler et al. (2013)
     """
-    # Convert response times dict to list
-    response_time_values = list(response_times.values())
-    
-    if not response_time_values or total_crops_presented == 0:
-        return 0.0
-    
-    # Calculate metrics
-    total_attempts = crops_identified + omission_errors
-    
-    # Set maximum acceptable standard deviation based on age group
-    if age_group == "5-7":
-        max_acceptable_sd = 700  # Higher variability expected for younger children
-    elif age_group == "8-10":
-        max_acceptable_sd = 600
-    elif age_group == "11-13":
-        max_acceptable_sd = 500
-    elif age_group == "14-16":
-        max_acceptable_sd = 400
+    total_go_trials = correct_go_responses + omission_errors
+    total_nogo_trials = correct_nogo_responses + commission_errors # Needed for context, not directly in score
+
+    if total_go_trials == 0:
+        return 0.0 # Cannot calculate if no Go trials occurred
+
+    # --- Component Calculations ---
+
+    # 1. Sustained Attention / Accuracy (Weight: 60%)
+    # Measures ability to maintain focus on Go stimuli.
+    sustained_attention_accuracy = (correct_go_responses / total_go_trials) * 100
+
+    # 2. Response Consistency (Weight: 30%)
+    # Measures stability of attentional state via RT variability.
+    # Lower variability = better consistency.
+    # Define max acceptable SD (example values, adjust based on norms/literature for Go/No-Go)
+    max_acceptable_sd = {
+        "5-7": 350,
+        "8-10": 300,
+        "11-13": 250,
+        "14-16": 200,
+        "adult": 180
+    }.get(age_group, 250) # Default
+
+    # Normalize variability (higher score for lower SD)
+    consistency_score = 0
+    if average_reaction_time_ms > 0: # Avoid division by zero
+        # Coefficient of Variation (CV) = SD / Mean
+        cv = reaction_time_variability_ms / average_reaction_time_ms
+        # Target CV might be around 0.2-0.3 for good performance
+        # Score decreases as CV increases above target
+        target_cv = 0.25
+        variability_range = 0.3 # e.g., score drops to 0 if CV reaches target + range (0.55)
+        consistency_score = max(0, min(1.0, (target_cv + variability_range - cv) / variability_range)) * 100
     else:
-        max_acceptable_sd = 500  # Default
-    
-    # Calculate components with scientific rationale
-    # 1. Attention accuracy: Proportion of correctly identified targets
-    # - Based on signal detection theory (hits vs. misses)
-    attention_part = crops_identified / total_attempts if total_attempts > 0 else 0
-    
-    # 2. Distraction resistance: Ability to ignore non-target stimuli
-    # - Based on inhibitory control research showing importance of distractor suppression
-    distraction_part = 1 - (distractions / total_crops_presented) if total_crops_presented > 0 else 0
-    
-    # 3. Attention consistency: Stability of response times
-    # - Based on research showing response time variability as key ADHD marker
-    if len(response_time_values) > 1:
-        sd_response_time = statistics.stdev(response_time_values)
-        consistency_part = 1 - (sd_response_time / max_acceptable_sd)
-        consistency_part = max(0, min(1, consistency_part))
+        consistency_score = 50 # Default if RT is zero or variability cannot be assessed
+
+
+    # 3. Processing Speed (Weight: 10%)
+    # Reflects speed of responding to targets. Faster is generally better, but very fast might link to impulsivity.
+    # Define expected RT range (example values, adjust based on norms)
+    min_expected_rt = {
+        "5-7": 400,
+        "8-10": 350,
+        "11-13": 300,
+        "14-16": 280,
+        "adult": 250
+    }.get(age_group, 300)
+    max_expected_rt = {
+        "5-7": 1000,
+        "8-10": 900,
+        "11-13": 800,
+        "14-16": 750,
+        "adult": 700
+    }.get(age_group, 800)
+
+    speed_score = 0
+    if average_reaction_time_ms > 0:
+        if average_reaction_time_ms < min_expected_rt:
+             # Slightly penalize potentially impulsive fast responses
+            speed_score = (average_reaction_time_ms / min_expected_rt) * 80 # Max score 80 if too fast
+        elif average_reaction_time_ms > max_expected_rt:
+            # Penalize slow responses
+            speed_score = max(0, (1 - (average_reaction_time_ms - max_expected_rt) / (max_expected_rt * 1.5))) * 100 # Gradual decrease
+        else:
+            # Optimal range
+            speed_score = 100
     else:
-        consistency_part = 0.5  # Default when not enough data
-    
-    # Calculate weighted score
-    # Weights based on Willcutt et al. (2005) findings on relative importance
-    # of different attention components in discriminating ADHD
-    score = (70 * attention_part) + (20 * distraction_part) + (10 * consistency_part)
-    return round(score, 2)
+        speed_score = 0
+
+    # --- Final Weighted Score ---
+    overall_gonogo_attention_score = (
+        (0.60 * sustained_attention_accuracy) +
+        (0.30 * consistency_score) +
+        (0.10 * speed_score)
+    )
+
+    return round(max(0, min(100, overall_gonogo_attention_score)), 2)
+
 
 
 def compute_sequence_attention_score(
@@ -171,44 +195,24 @@ def compute_sequence_attention_score(
     return round(score, 2)
 
 
+# Example modification
 def compute_overall_attention_score(
-    crop_score: Optional[float] = None,
+    gonogo_score: Optional[float] = None, # Changed from crop_score
     sequence_score: Optional[float] = None
 ) -> Optional[float]:
-    """
-    Calculate overall attention score based on available game scores.
-    
-    Handles cases where one game type might be missing.
-    
-    Parameters:
-    -----------
-    crop_score : float, optional
-        Score from crop recognition task
-    sequence_score : float, optional
-        Score from sequence memory task
-        
-    Returns:
-    --------
-    float or None
-        Overall attention score (0-100) or None if no scores available
-    """
     # Both scores available
-    if crop_score is not None and sequence_score is not None:
-        # Weight crop recognition higher as it's more specific to selective attention
-        # Based on research showing selective attention as more discriminative for ADHD
-        return round((0.6 * crop_score) + (0.4 * sequence_score), 2)
-    
-    # Only crop score available
-    elif crop_score is not None:
-        return round(crop_score, 2)
-    
+    if gonogo_score is not None and sequence_score is not None:
+        # Example: Equal weighting or weight GoNoGo slightly higher
+        return round((0.5 * gonogo_score) + (0.5 * sequence_score), 2)
+    # Only GoNoGo score available
+    elif gonogo_score is not None:
+        return round(gonogo_score, 2)
     # Only sequence score available
     elif sequence_score is not None:
         return round(sequence_score, 2)
-    
-    # No scores available
     else:
         return None
+
 
 
 def get_attention_normative_comparison(
@@ -305,41 +309,3 @@ def get_attention_normative_comparison(
     
     return result
 
-
-# Example usage
-if __name__ == "__main__":
-    # Example crop recognition metrics
-    crop_score = compute_crop_attention_score(
-        crops_identified=18,
-        omission_errors=2,
-        response_times={"crop1": 450, "crop2": 500, "crop3": 480},
-        distractions=3,
-        total_crops_presented=25,
-        age_group="8-10"
-    )
-    print(f"Crop Recognition Attention Score: {crop_score}")
-    
-    # Example sequence memory metrics
-    sequence_score = compute_sequence_attention_score(
-        sequence_length=5,
-        expected_max_sequence=7,
-        commission_errors=2,
-        total_sequence_elements=20,
-        retention_times=[950, 1050, 1100, 900, 1000],
-        age_group="8-10"
-    )
-    print(f"Sequence Memory Attention Score: {sequence_score}")
-    
-    # Overall attention score
-    overall_score = compute_overall_attention_score(crop_score, sequence_score)
-    print(f"Overall Attention Score: {overall_score}")
-    
-    # Normative comparison
-    comparison = get_attention_normative_comparison(
-        attention_score=overall_score,
-        age_group="8-10",
-        clinical_group="ADHD"
-    )
-    print("\nNormative Comparison:")
-    for key, value in comparison.items():
-        print(f"{key}: {value}")

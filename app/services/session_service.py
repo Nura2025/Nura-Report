@@ -42,8 +42,8 @@ class SessionService:
             )
 
             match result.game_type:
-                case "crop_recognition":
-                    metrics = result.crop_metrics
+                case "go_no_go":
+                    metrics = result.go_no_go_metrics
                 case "sequence_memory":
                     metrics = result.sequence_metrics
                 case "matching_cards":
@@ -63,7 +63,7 @@ class SessionService:
             select(Session)
             .where(Session.session_id == new_session.session_id)
             .options(
-                selectinload(Session.game_results).selectinload(GameResult.crop_metrics),
+                selectinload(Session.game_results).selectinload(GameResult.go_no_go_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.sequence_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.matching_metrics),
             )
@@ -81,7 +81,7 @@ class SessionService:
             select(Session)
             .where(Session.user_id == patient_id)
             .options(
-                selectinload(Session.game_results).selectinload(GameResult.crop_metrics),
+                selectinload(Session.game_results).selectinload(GameResult.go_no_go_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.sequence_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.matching_metrics),
             )
@@ -105,7 +105,7 @@ class SessionService:
             select(Session)
             .where(Session.user_id == patient_id)
             .options(
-                selectinload(Session.game_results).selectinload(GameResult.crop_metrics),
+                selectinload(Session.game_results).selectinload(GameResult.go_no_go_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.sequence_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.matching_metrics),
             ).limit(limit).offset(offset)
@@ -127,7 +127,7 @@ class SessionService:
             select(Session)
             .where(Session.user_id == patient_id)
             .options(
-                selectinload(Session.game_results).selectinload(GameResult.crop_metrics),
+                selectinload(Session.game_results).selectinload(GameResult.go_no_go_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.sequence_metrics),
                 selectinload(Session.game_results).selectinload(GameResult.matching_metrics),
             ).limit(limit).offset(offset)

@@ -28,21 +28,16 @@ from typing import List, Dict, Optional, Union
 import math
 
 def compute_impulse_control_score(
-    # Sequence memory metrics
     commission_errors: int = 0,
     total_sequence_elements: int = 0,
     retention_times: Optional[List[int]] = None,
-    
-    # Crop recognition metrics
-    distractions: int = 0,
-    total_crops_presented: int = 0,
-    crop_response_times: Optional[Dict[str, float]] = None,
-    
-    # Matching cards metrics
+    gonogo_commission_errors: int = 0,
+    correct_nogo_responses: int = 0,
+    average_reaction_time_ms: Optional[float] = None,
+    reaction_time_variability_ms: Optional[float] = None,  # Add this parameter
     incorrect_matches: int = 0,
     matches_attempted: int = 0,
     time_per_match: Optional[List[int]] = None,
-    
     age_group: Optional[str] = None
 ) -> Dict[str, Union[float, str]]:
     """
@@ -81,12 +76,13 @@ def compute_impulse_control_score(
         inhibitory_control_scores.append(sequence_inhibitory_score)
         available_games.append("sequence")
     
-    # Crop task inhibitory control
-    if total_crops_presented > 0:
-        distraction_rate = distractions / total_crops_presented
-        crop_inhibitory_score = max(0, (1 - distraction_rate)) * 100
-        inhibitory_control_scores.append(crop_inhibitory_score)
-        available_games.append("crop")
+    # gonogo task inhibitory control
+    total_nogo_trials = correct_nogo_responses + gonogo_commission_errors
+    if total_nogo_trials > 0:
+        gonogo_error_rate = gonogo_commission_errors / total_nogo_trials
+        gonogo_inhibitory_score = max(0, (1 - gonogo_error_rate)) * 100
+        inhibitory_control_scores.append(gonogo_inhibitory_score)
+        if "gonogo" not in available_games: available_games.append("gonogo")
     
     # Card matching inhibitory control
     if matches_attempted > 0:
@@ -116,14 +112,7 @@ def compute_impulse_control_score(
             sequence_response_score = max(0, min(1.0, (0.5 - cv) / 0.3)) * 100
             response_control_scores.append(sequence_response_score)
     
-    # Crop task response control
-    if crop_response_times and len(crop_response_times) > 1:
-        crop_rt_values = list(crop_response_times.values())
-        mean_rt = statistics.mean(crop_rt_values)
-        if mean_rt > 0:
-            cv = statistics.stdev(crop_rt_values) / mean_rt
-            crop_response_score = max(0, min(1.0, (0.5 - cv) / 0.3)) * 100
-            response_control_scores.append(crop_response_score)
+   
     
     # Card matching response control
     if time_per_match and len(time_per_match) > 1:
@@ -174,16 +163,19 @@ def compute_impulse_control_score(
         decision_speed_scores.append(sequence_speed_score)
     
     # Crop task decision speed
-    if crop_response_times and len(crop_response_times) > 0:
-        crop_rt_values = list(crop_response_times.values())
-        mean_rt = statistics.mean(crop_rt_values)
-        if mean_rt < optimal_min:
-            crop_speed_score = (mean_rt / optimal_min) * 100
-        elif mean_rt > optimal_max:
-            crop_speed_score = max(0, (1 - (mean_rt - optimal_max) / optimal_max)) * 100
+    if average_reaction_time_ms is not None and average_reaction_time_ms > 0:
+        # Use same optimal range logic as before
+        optimal_range = optimal_ranges.get(age_group, (600, 1600))
+        optimal_min, optimal_max = optimal_range
+        if average_reaction_time_ms < optimal_min:
+            gonogo_speed_score = (average_reaction_time_ms / optimal_min) * 100
+        elif average_reaction_time_ms > optimal_max:
+            gonogo_speed_score = max(0, (1 - (average_reaction_time_ms - optimal_max) / optimal_max)) * 100
         else:
-            crop_speed_score = 100
-        decision_speed_scores.append(crop_speed_score)
+            gonogo_speed_score = 100
+        decision_speed_scores.append(gonogo_speed_score)
+        if "gonogo" not in available_games: available_games.append("gonogo")
+
     
     # Card matching decision speed
     if time_per_match and len(time_per_match) > 0:
@@ -236,7 +228,7 @@ def compute_impulse_control_score(
         "games_used": available_games,
         "components": {
             "commission_error_rate": round(commission_errors / max(total_sequence_elements, 1), 3) if total_sequence_elements > 0 else None,
-            "distraction_rate": round(distractions / max(total_crops_presented, 1), 3) if total_crops_presented > 0 else None,
+            "gonogo_commission_error_rate": round(gonogo_commission_errors / max(total_nogo_trials, 1), 3) if total_nogo_trials > 0 else None,
             "incorrect_match_rate": round(incorrect_matches / max(matches_attempted, 1), 3) if matches_attempted > 0 else None
         }
     }

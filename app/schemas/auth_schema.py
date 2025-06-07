@@ -30,9 +30,9 @@ class UserBasics(BaseModel):
     username: str
     password: str
     
-    @field_validator("password")
-    def validate_password_field(cls, value):
-        return validate_password(value)
+    # @field_validator("password")
+    # def validate_password_field(cls, value):
+    #     return validate_password(value)
 
 
 class UserPublic(BaseModel):
@@ -66,11 +66,11 @@ class ClinicianCreateRequest(UserBasics):
     specialty: Optional[str] = None
     phone_number: Optional[str] = None
 
-    @field_validator("phone_number")
-    def validate_phone(cls, v):
-        if v and not phone_regex.match(v):
-            raise ValueError("Phone number must be valid and contain only digits (optionally starting with '+')")
-        return v
+    # @field_validator("phone_number")
+    # def validate_phone(cls, v):
+    #     if v and not phone_regex.match(v):
+    #         raise ValueError("Phone number must be valid and contain only digits (optionally starting with '+')")
+    #     return v
 
 
 

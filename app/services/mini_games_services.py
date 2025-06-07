@@ -6,20 +6,20 @@ from uuid import UUID
 
 from sqlmodel import select
 
-from app.db.models import CropRecognitionMetrics, GameResult, MatchingCardsMetrics, SequenceMemoryMetrics, Session
-from app.schemas.mini_games_schema import CropRecognitionMetricCreate, CropRecognitionMetricsResponse, MatchingCardsMetricCreate, MatchingCardsMetricsResponse, SequenceMemoryMetricCreate, SequenceMemoryMetricsResponse
+from app.db.models import  GameResult, GoNoGoMetrics, MatchingCardsMetrics, SequenceMemoryMetrics, Session
+from app.schemas.mini_games_schema import GoNoGoMetricCreate, GONoGoMetricsResponse, MatchingCardsMetricCreate, MatchingCardsMetricsResponse, SequenceMemoryMetricCreate, SequenceMemoryMetricsResponse
 
 class MiniGameService:
     def __init__(self, db: AsyncSession):
         self.db = db
         # Define mappings once during initialization for better performance
         self.metric_model_map = {
-            "crop_recognition": (CropRecognitionMetricCreate, CropRecognitionMetrics),
+            "go_no_go":(GoNoGoMetricCreate, GoNoGoMetrics),
             "sequence_memory": (SequenceMemoryMetricCreate, SequenceMemoryMetrics),
             "matching_cards": (MatchingCardsMetricCreate, MatchingCardsMetrics),
         }
 
-    async def create_metric(self, metric_type: str, data: Union[CropRecognitionMetricCreate, SequenceMemoryMetricCreate, MatchingCardsMetricCreate, dict]) -> Union[CropRecognitionMetricsResponse, SequenceMemoryMetricsResponse, MatchingCardsMetricsResponse]:
+    async def create_metric(self, metric_type: str, data: Union[GoNoGoMetricCreate, SequenceMemoryMetricCreate, MatchingCardsMetricCreate, dict]) -> Union[GONoGoMetricsResponse, SequenceMemoryMetricsResponse, MatchingCardsMetricsResponse]:
         metric_model_create, metric_model_response = self.metric_model_map.get(metric_type, (None, None))
         if not metric_model_create:
             raise HTTPException(status_code=400, detail="Unsupported metric type")
@@ -42,8 +42,8 @@ class MiniGameService:
     async def get_metrics_by_type(self, metric_type: str, result_id: UUID):
             print(f"inside the get query")
 
-            if metric_type == "crop":
-                query = select(CropRecognitionMetrics).where(CropRecognitionMetrics.result_id == result_id)
+            if metric_type == "go_no_go":
+                query = select(GoNoGoMetrics).where(GoNoGoMetrics.result_id == result_id)
             elif metric_type == "sequence":
                 query = select(SequenceMemoryMetrics).where(SequenceMemoryMetrics.result_id == result_id)
             elif metric_type == "matching":

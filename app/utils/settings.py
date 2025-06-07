@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 # تحميل المتغيرات البيئية
-dotenv_path = Path(r"C:\Users\ASUS\OneDrive\Desktop\Nura-Report\app\.env")
+dotenv_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
 class Settings(BaseSettings):
@@ -18,6 +18,6 @@ class Settings(BaseSettings):
         "env_file": dotenv_path
     }
 
-settings = Settings() 
+settings = Settings()
 
 print("Loaded settings:", settings.model_dump())  # طباعة القيم للتأكد من تحميلها

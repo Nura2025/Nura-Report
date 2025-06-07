@@ -135,32 +135,16 @@ class GameResult(SQLModel, table=True):
     session_id: UUID = Field(foreign_key="sessions.session_id", nullable=False)
 
     session: "Session" = Relationship(back_populates="game_results")
-    crop_metrics: Optional["CropRecognitionMetrics"] = Relationship(back_populates="game_result", 
-                                                                    sa_relationship_kwargs={"cascade": "all, delete-orphan"}
-)
     sequence_metrics: Optional["SequenceMemoryMetrics"] = Relationship(back_populates="game_result",
                                                                         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
 )
     matching_metrics: Optional["MatchingCardsMetrics"] = Relationship(back_populates="game_result",
                                                                      sa_relationship_kwargs={"cascade": "all, delete-orphan"}
 )
+    go_no_go_metrics: Optional["GoNoGoMetrics"] = Relationship(back_populates="game_result",
+                                                                    sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+)
 
-class CropRecognitionMetrics(SQLModel, table=True):
-    __tablename__ = 'crop_recognition_metrics'
-    
-    metric_id:UUID = Field( default_factory=uuid4,primary_key=True,sa_column_kwargs={"server_default": text("gen_random_uuid()")})  
-    result_id: UUID = Field(foreign_key="game_results.result_id")
-    crops_identified: int
-    omission_errors: int
-    response_times: Dict[str, float] = Field(sa_column=Column(JSON))
-    distractions: int
-    total_crops_presented: int
-    created_at: datetime = Field(
-        sa_column=Column(TIMESTAMP(timezone=True), server_default=func.now())
-    )
-    score: Optional[float] = Field(sa_column=Column(Float))
-    
-    game_result: GameResult = Relationship(back_populates="crop_metrics")
 
 class SequenceMemoryMetrics(SQLModel, table=True):
     __tablename__ = 'sequence_memory_metrics'
@@ -197,6 +181,22 @@ class MatchingCardsMetrics(SQLModel, table=True):
 
     game_result: GameResult = Relationship(back_populates="matching_metrics")
 
+class GoNoGoMetrics(SQLModel, table=True):
+    __tablename__ = 'go_no_go_metrics'
+
+    metric_id: UUID = Field(default_factory=uuid4, primary_key=True, sa_column_kwargs={"server_default": text("gen_random_uuid()")})
+    result_id: UUID = Field(foreign_key="game_results.result_id")
+    average_reaction_time_ms: float = Field(sa_column=Column(Float))  # Average RT for correct Go responses
+    commission_errors: int = Field(sa_column=Column(Integer))         # Count of presses on No-Go trials
+    omission_errors: int = Field(sa_column=Column(Integer))           # Count of missed presses on Go trials
+    correct_go_responses: int = Field(sa_column=Column(Integer))      # Count of correct presses on Go trials
+    correct_nogo_responses: int = Field(sa_column=Column(Integer))    # Count of correct inhibitions on No-Go trials
+    reaction_time_variability_ms: float = Field(sa_column=Column(Float))  # Standard deviation of RTs for correct Go responses
+    created_at: datetime = Field(sa_column=Column(TIMESTAMP(timezone=True), server_default=func.now()))
+    score: Optional[float] = Field(sa_column=Column(Float))  # Optional score field
+
+    game_result: GameResult = Relationship(back_populates="go_no_go_metrics")
+
 class AuditLog(SQLModel, table=True):
     __tablename__ = 'audit_log'
 
@@ -225,7 +225,7 @@ class AttentionAnalysis(SQLModel, table=True):
         )
     )
     session_id: UUID = Field(foreign_key="sessions.session_id")
-    crop_score: float
+    go_nogo_score: float
     sequence_score: float
     overall_score: float
     percentile: float = Field(default=50.0)
@@ -308,6 +308,18 @@ class ExecutiveFunctionAnalysis(SQLModel, table=True):
         )
     )
 
+class InvitationToken(SQLModel, table=True):
+    __tablename__ = "invitation_tokens"
+
+    token: str = Field(primary_key=True)  # Unique token for the invitation
+    clinician_id: UUID = Field(foreign_key="clinicians.user_id", nullable=False)  # Clinician who sent the invitation
+    patient_email: Optional[str] = Field(sa_column=Column(String(100), nullable=True))  # Email of the invited patient
+    expires_at: datetime = Field(sa_column=Column(TIMESTAMP, nullable=False))  # Expiration time of the token
+    used: bool = Field(default=False)  # Whether the token has been used
+    created_at: datetime = Field(
+        sa_column=Column(TIMESTAMP, server_default=func.now(), nullable=False)
+    )
+
 class NormativeData(SQLModel, table=True):
     __tablename__ = "normative_data"
 
@@ -326,3 +338,4 @@ class NormativeData(SQLModel, table=True):
             server_default=func.now()
         )
     )
+

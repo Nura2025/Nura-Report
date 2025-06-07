@@ -13,14 +13,6 @@ from datetime import datetime
 class BaseMetric(BaseModel):
     result_id: UUID
 
-# Crop
-class CropRecognitionMetricCreate(BaseModel):
-    crops_identified: int
-    omission_errors: int
-    response_times: Dict[str, float]
-    distractions: int
-    total_crops_presented: int
-
 # Sequence
 class SequenceMemoryMetricCreate(BaseModel):
     sequence_length: int
@@ -36,22 +28,13 @@ class MatchingCardsMetricCreate(BaseModel):
     incorrect_matches: int
     time_per_match: List[int]
 
-
-
-class CropRecognitionMetricsResponse(BaseModel):
-    metric_id: UUID
-    crops_identified: int
+class GoNoGoMetricCreate(BaseModel):
+    average_reaction_time_ms: float
+    commission_errors: int
     omission_errors: int
-    response_times: Dict[str, float]
-    distractions: int
-    total_crops_presented: int
-    created_at: datetime
-    score: Optional[float]
-
-    class Config:
-        from_attributes = True
-        orm_mode = True
-
+    correct_go_responses: int
+    correct_nogo_responses: int
+    reaction_time_variability_ms: float
 
 class SequenceMemoryMetricsResponse(BaseModel):
     metric_id: UUID
@@ -67,6 +50,20 @@ class SequenceMemoryMetricsResponse(BaseModel):
         from_attributes = True
         orm_mode = True
 
+class GONoGoMetricsResponse(BaseModel):
+    metric_id: UUID
+    average_reaction_time_ms: float
+    commission_errors: int
+    omission_errors: int
+    correct_go_responses: int
+    correct_nogo_responses: int
+    reaction_time_variability_ms: float
+    created_at: datetime
+    score: Optional[float]
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
 
 class MatchingCardsMetricsResponse(BaseModel):
     metric_id: UUID

@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, validator
 from typing import Optional, List, Dict, Union
 from uuid import UUID
 
-from app.schemas.game_result_schema import GameResultCreate, GameResultCropCreate, GameResultMatchingCreate, GameResultResponse, GameResultSequenceCreate
+from app.schemas.game_result_schema import GameResultCreate, GameResultMatchingCreate, GameResultResponse, GameResultSequenceCreate
 
 class SessionBase(BaseModel):
     session_date: datetime

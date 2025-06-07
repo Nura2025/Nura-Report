@@ -6,6 +6,6 @@ class Gender(str, Enum):
     other = "other"
 
 class GameType(str, Enum):
-    crop_recognition = "crop_recognition"
+    go_no_go = "go_no_go"
     sequence_memory = "sequence_memory"
     matching_cards = "matching_cards"

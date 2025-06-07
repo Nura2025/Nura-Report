@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 
 from app.db.enums import GameType
-from app.schemas.mini_games_schema import CropRecognitionMetricCreate, CropRecognitionMetricsResponse, MatchingCardsMetricCreate, MatchingCardsMetricsResponse, SequenceMemoryMetricCreate, SequenceMemoryMetricsResponse
+from app.schemas.mini_games_schema import GoNoGoMetricCreate, MatchingCardsMetricCreate, MatchingCardsMetricsResponse, SequenceMemoryMetricCreate, SequenceMemoryMetricsResponse
 
 class GameResultBase(BaseModel):
     session_id: UUID | None = None
@@ -13,9 +13,9 @@ class GameResultBase(BaseModel):
     end_time: datetime | None = None
     difficulty_level: int
 
-class GameResultCropCreate(GameResultBase):
-    game_type: Literal["crop_recognition"] = "crop_recognition"
-    crop_metrics: CropRecognitionMetricCreate
+class GameResultGoNoGoCreate(GameResultBase):
+    game_type: Literal["go_no_go"] = "go_no_go"
+    go_no_go_metrics: GoNoGoMetricCreate
 
 class GameResultSequenceCreate(GameResultBase):
     game_type: Literal["sequence_memory"] = "sequence_memory"
@@ -29,7 +29,7 @@ class GameResultResponse(BaseModel):
     result_id: UUID
     created_at: datetime
     game_type: GameType
-    crop_metrics: CropRecognitionMetricCreate | None = None
+    go_no_go_metrics: GoNoGoMetricCreate | None = None
     sequence_metrics: SequenceMemoryMetricCreate | None = None
     matching_metrics: MatchingCardsMetricCreate | None = None
 
@@ -40,7 +40,7 @@ class GameResultResponse(BaseModel):
     
 GameResultCreate = Annotated[
     Union[
-        GameResultCropCreate,
+        GameResultGoNoGoCreate,
         GameResultSequenceCreate,
         GameResultMatchingCreate,
     ],

@@ -9,12 +9,12 @@ from sqlalchemy import select, text
 import json
 from datetime import datetime
 from sqlalchemy.orm import selectinload
-from app.calculation.attention import compute_crop_attention_score, compute_overall_attention_score, compute_sequence_attention_score, get_attention_normative_comparison
+from app.calculation.attention import compute_gonogo_attention_score, compute_overall_attention_score, compute_sequence_attention_score, get_attention_normative_comparison
 from app.calculation.impulse import compute_impulse_control_score
 from app.calculation.memory import compute_memory_score
 from app.db.models import AttentionAnalysis
 from app.db.models import (
-    GameResult, CropRecognitionMetrics, SequenceMemoryMetrics, MatchingCardsMetrics,
+    GameResult, SequenceMemoryMetrics, MatchingCardsMetrics,
     MemoryAnalysis, ImpulseAnalysis, ExecutiveFunctionAnalysis, NormativeData
 )
 from app.utils.age_utils import get_age_group
@@ -39,14 +39,14 @@ class CognitiveAssessmentService:
                 select(GameResult)
                 .where(GameResult.session_id == session_id)
                 .options(
-                    selectinload(GameResult.crop_metrics),
+                    selectinload(GameResult.go_no_go_metrics),
                     selectinload(GameResult.sequence_metrics),
                     selectinload(GameResult.matching_metrics)
                 )
             )
             game_results = result.scalars().all()
             sequence_metrics = {}
-            crop_metrics = {}
+            go_no_go_metrics = {}
             matching_metrics = {}
             
             for game_result in game_results:
@@ -59,13 +59,14 @@ class CognitiveAssessmentService:
                         "total_sequence_elements": game_result.sequence_metrics.total_sequence_elements
                     }
                 
-                if game_result.crop_metrics:
-                    crop_metrics = {
-                        "crops_identified": game_result.crop_metrics.crops_identified,
-                        "omission_errors": game_result.crop_metrics.omission_errors,
-                        "distractions": game_result.crop_metrics.distractions,
-                        "total_crops_presented": game_result.crop_metrics.total_crops_presented,
-                        "response_times": game_result.crop_metrics.response_times
+                if game_result.go_no_go_metrics:
+                    go_no_go_metrics = {
+                        "average_reaction_time_ms": game_result.go_no_go_metrics.average_reaction_time_ms,
+                        "commission_errors": game_result.go_no_go_metrics.commission_errors,
+                        "omission_errors": game_result.go_no_go_metrics.omission_errors,
+                        "correct_go_responses": game_result.go_no_go_metrics.correct_go_responses,
+                        "correct_nogo_responses": game_result.go_no_go_metrics.correct_nogo_responses,
+                        "reaction_time_variability_ms": game_result.go_no_go_metrics.reaction_time_variability_ms
                     }
                 
                 if game_result.matching_metrics:
@@ -91,14 +92,15 @@ class CognitiveAssessmentService:
                 age_group=age_group
             )
 
-            crop_score = compute_crop_attention_score(
-                crops_identified=crop_metrics.get("crops_identified", 0),
-                omission_errors=crop_metrics.get("omission_errors", 0),
-                distractions=crop_metrics.get("distractions", 0),
-                total_crops_presented=crop_metrics.get("total_crops_presented", 0),
-                response_times=crop_metrics.get("response_times", {}),
+            go_nogo_score = compute_gonogo_attention_score(
+                commission_errors=go_no_go_metrics.get("commission_errors", 0),
+                omission_errors=go_no_go_metrics.get("omission_errors", 0),
+                correct_go_responses=go_no_go_metrics.get("correct_go_responses", 0),
+                correct_nogo_responses=go_no_go_metrics.get("correct_nogo_responses", 0),
+                average_reaction_time_ms=go_no_go_metrics.get("average_reaction_time_ms", 0),
+                reaction_time_variability_ms=go_no_go_metrics.get("reaction_time_variability_ms", 0),
                 age_group=age_group
-            ) if crop_metrics else 0
+                ) if go_no_go_metrics else 0
 
             sequence_score = compute_sequence_attention_score(
                 sequence_length=sequence_metrics.get("sequence_length", 0),
@@ -109,22 +111,21 @@ class CognitiveAssessmentService:
                 age_group=age_group
             ) if sequence_metrics else 0
 
-            overall_attention_score = compute_overall_attention_score(crop_score, sequence_score)
+            overall_attention_score = compute_overall_attention_score(go_nogo_score, sequence_score)
             
             impulse_result = compute_impulse_control_score(
                 commission_errors=sequence_metrics.get("commission_errors", 0),
                 total_sequence_elements=sequence_metrics.get("total_sequence_elements", 0),
                 retention_times=sequence_metrics.get("retention_times", []),
-                distractions=crop_metrics.get("distractions", 0),
-                total_crops_presented=crop_metrics.get("total_crops_presented", 0),
-                crop_response_times=crop_metrics.get("response_times", {}),                
+                gonogo_commission_errors=go_no_go_metrics.get("commission_errors", 0),
+                correct_nogo_responses=go_no_go_metrics.get("correct_nogo_responses", 0),
+                average_reaction_time_ms=go_no_go_metrics.get("average_reaction_time_ms", 0),
                 incorrect_matches=matching_metrics.get("incorrect_matches", 0),
                 matches_attempted=matching_metrics.get("matches_attempted", 0),
                 time_per_match=matching_metrics.get("time_per_match", []),
-                
                 age_group=age_group
             )
-            
+                        
             executive_result = self.compute_executive_function_score(
                 memory_score=memory_result["overall_memory_score"],
                 impulse_score=impulse_result["overall_impulse_control_score"],
@@ -157,7 +158,7 @@ class CognitiveAssessmentService:
 
             attention_analysis = AttentionAnalysis(
                 session_id=session_id,
-                crop_score=crop_score,
+                go_nogo_score=go_nogo_score,
                 sequence_score=sequence_score,
                 overall_score=overall_attention_score,
                 percentile=attention_comparison["percentile"],

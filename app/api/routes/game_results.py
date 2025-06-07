@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.db.database import get_session
-from app.schemas.game_result_schema import GameResultCropCreate, GameResultMatchingCreate, GameResultSequenceCreate
+from app.schemas.game_result_schema import GameResultMatchingCreate, GameResultSequenceCreate
 from app.schemas.sessions_schema import SessionCreate, SessionCreateResponse, SessionResponse
 from app.services.cognitive_assessment_service import CognitiveAssessmentService
 from app.services.game_result_services import GameResultService
@@ -132,11 +132,11 @@ async def create_user_data(
         current_user: Patient = Depends(get_current_patient),
     ):
         # Authorization check: Only the current patient can create data
-        if current_user.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to create data for this user."
-            )
+        # if current_user.user_id != user_id:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_403_FORBIDDEN,
+        #         detail="You do not have permission to create data for this user."
+        #     )
         session_data.user_id = user_id
         # Use the SessionService to create the session and associated data
         service = SessionService(session )
