@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    container_name: adhd_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: adhd_user
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: adhd_therapy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: adhd_api
+    depends_on:
+      - db
+    environment:
+      SECRET_KEY: "09d25e094faa6c…e7"
+      DATABASE_URL: postgresql+asyncpg://adhd_user:1234@db/adhd_therapy
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    ports:
+      - "8000:8000"
+    restart: always
+
+volumes:
+  postgres_data:
