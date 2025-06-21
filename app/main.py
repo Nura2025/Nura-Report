@@ -2,22 +2,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.api.routes import analytics, auth, patient ,session ,mini_games, game_results
 from app.db.database import init_db, close_db_connection
-from app.db.models import Patient, Clinician, Session, GameResult  
+from app.db.models import Patient, Clinician, Session, GameResult
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+from datetime import datetime
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    try:
-        yield
-    finally:
-        await close_db_connection()
+    yield
+    await close_db_connection()
 
-app = FastAPI(
-    title="ADHD Therapy Platform API",
-    lifespan=lifespan,
-)
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth.router)
 app.include_router(session.router)
@@ -49,3 +46,12 @@ def read_root():
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow()}
+
+if __name__ == "__main__":
+    import traceback
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=8000)
+    except Exception as e:
+        print("UNHANDLED EXCEPTION:", e)
+        traceback.print_exc()
+
